@@ -3,28 +3,9 @@
 
 #include <iostream>
 
+#include <algorithm>
 #include <string>
 #include <vector>
-#include <random>
-#include <fstream>
-#include <stack>
-#include <algorithm>
-#include <map>
-#include <sstream>
-#include <cstdlib>
-#include <ctime>
-#include <deque>
-#include <list>
-#include <iterator>
-#include <numeric>
-#include <set>
-#include <limits>
-#include <queue>
-#include <cmath>
-#include <iomanip>
-#include <memory>
-#include <unordered_map>
-#include <functional>
 
 #include <Windows.h>
 
