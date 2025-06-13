@@ -1,597 +1,21 @@
 #include "head.h"
 
-// Безопасный ввод числа
-int getIntegerInput()
-{
-    string input;
-    int num;
-    bool valid = false;
-
-    while (!valid)
-    {
-        cout << "Введите целое число: ";
-        cin >> input;
-
-        try
-        {
-            size_t pos;
-            num = stoi(input, &pos);
-
-            // Проверяем, что вся строка была преобразована
-            if (pos == input.length())
-            {
-                valid = true;
-            }
-            else
-            {
-                cout << "Ошибка! Введите целое число без дополнительных символов." << endl;
-            }
-        }
-        catch (const invalid_argument&)
-        {
-            cout << "Ошибка! Введите целое число." << endl;
-        }
-        catch (const out_of_range&)
-        {
-            cout << "Ошибка! Число слишком большое." << endl;
-        }
-
-        if (!valid)
-        {
-            cin.clear();
-            cin.ignore();
-        }
-    }
-
-    return num;
-}
-
-//1
-// Преобразует символ операции в числовой код
-int TreeOperands::operationToCode(char op)
-{
-    switch (op)
-    {
-    case '+': return -1;
-    case '-': return -2;
-    case '*': return -3;
-    case '/': return -4;
-    case '%': return -5;
-    case '^': return -6;
-    default: return 0;
-    }
-}
-
-// Проверяет, является ли токен оператором
-bool TreeOperands::isOperator(const string& token)
-{
-    return token.size() == 1 && tValidOps.find(token[0]) != string::npos;
-}
-
-// Рекурсивно строит дерево из префиксного выражения
-TreeOperands::TreeNode* TreeOperands::buildTreeFromPrefix(const vector<string>& tokens, int& index)
-{
-    if (index >= tokens.size())
-    {
-        return nullptr;
-    }
-
-    string token = tokens[index++];
-    TreeNode* node;
-
-    if (isOperator(token))
-    {
-        node = new TreeNode(operationToCode(token[0]));
-        node->tLeft = buildTreeFromPrefix(tokens, index);
-        node->tRight = buildTreeFromPrefix(tokens, index);
-    }
-    else
-    {
-        node = new TreeNode(stoi(token));
-    }
-
-    return node;
-}
-
-// Вычисляет значение поддерева
-int TreeOperands::evaluate(TreeNode* node)
-{
-    if (!node)
-    {
-        return 0;
-    }
-
-    if (node->tValue >= 0)
-    {
-        return node->tValue;
-    }
-
-    int leftVal = evaluate(node->tLeft);
-    int rightVal = evaluate(node->tRight);
-
-    switch (node->tValue)
-    {
-    case -1: return leftVal + rightVal;
-    case -2: return leftVal - rightVal;
-    case -3: return leftVal * rightVal;
-    case -4:
-    {
-        if (rightVal == 0)
-        {
-            throw runtime_error("Деление на ноль");
-        }
-        return leftVal / rightVal;
-    }
-    case -5:
-    {
-        if (rightVal == 0)
-        {
-            throw runtime_error("Деление по модулю на ноль");
-        }
-        return leftVal % rightVal;
-    }
-    case -6:
-    {
-        if (leftVal == 0 && rightVal <= 0)
-        {
-            throw runtime_error("Недопустимая операция возведения в степень");
-        }
-        int result = 1;
-        for (int i = 0; i < rightVal; ++i)
-        {
-            result *= leftVal;
-        }
-        return result;
-    }
-    default: return 0;
-    }
-}
-
-// Преобразует дерево, заменяя поддеревья с нулевыми результатами
-void TreeOperands::transformTree(TreeNode* node)
-{
-    if (!node)
-    {
-        return;
-    }
-
-    if (node->tValue < 0)// Это оператор
-    {
-        transformTree(node->tLeft);
-        transformTree(node->tRight);
-
-        int leftVal = 0, rightVal = 0;
-        bool leftIsNum = false, rightIsNum = false;
-
-        if (node->tLeft && node->tLeft->tValue >= 0)
-        {
-            leftVal = node->tLeft->tValue;
-            leftIsNum = true;
-        }
-        if (node->tRight && node->tRight->tValue >= 0)
-        {
-            rightVal = node->tRight->tValue;
-            rightIsNum = true;
-        }
-
-        if (leftIsNum && leftVal == 0)
-        {
-            delete node->tLeft;
-            node->tLeft = nullptr;
-            TreeNode* newRight = new TreeNode(evaluate(node->tRight));
-            delete node->tRight;
-            node->tRight = nullptr;
-            node->tValue = newRight->tValue;
-            delete newRight;
-        }
-        else if (rightIsNum && rightVal == 0)
-        {
-            delete node->tRight;
-            node->tRight = nullptr;
-            TreeNode* newLeft = new TreeNode(evaluate(node->tLeft));
-            delete node->tLeft;
-            node->tLeft = nullptr;
-            node->tValue = newLeft->tValue;
-            delete newLeft;
-        }
-    }
-}
-
-// Рекурсивно выводит дерево в понятном виде
-void TreeOperands::printTree(TreeNode* node, int depth)
-{
-    if (!node)
-    {
-        return;
-    }
-
-    printTree(node->tRight, depth + 1);
-    cout << string(depth * 4, ' ') << node->tValue << endl;
-    printTree(node->tLeft, depth + 1);
-}
-
-// Рекурсивно освобождает память, занятую деревом
-void TreeOperands::clearTree(TreeNode* node)
-{
-    if (!node)
-    {
-        return;
-    }
-
-    clearTree(node->tLeft);
-    clearTree(node->tRight);
-    delete node;
-}
-
-// Строит дерево из файла
-void TreeOperands::buildFromFile(const string& filename)
-{
-    ifstream file(filename);
-    if (!file.is_open())
-    {
-        throw runtime_error("Невозможно открыть файл: " + filename);
-    }
-
-    vector<string> tokens;
-    string token;
-    while (file >> token)
-    {
-        tokens.push_back(token);
-    }
-
-    int index = 0;
-    tRoot = buildTreeFromPrefix(tokens, index);
-}
-
-// Строит дерево из ввода пользователя
-void TreeOperands::buildFromConsole()
-{
-    /*cout << "Введите префиксное выражение (операции: + - * / % ^, "
-        << "операнды: 0-9):" << endl;
-    string line;
-    getline(cin, line);
-
-    vector<string> tokens;
-    stringstream ss(line);
-    string token;
-    while (ss >> token)
-    {
-        tokens.push_back(token);
-    }
-
-    int index = 0;
-    tRoot = buildTreeFromPrefix(tokens, index);*/
-    bool input_valid = false;
-
-    while (!input_valid)
-    {
-        cout << "Введите префиксное выражение (операции: + - * / % ^, "
-            << "операнды: 0-9):" << endl;
-        string line;
-        getline(cin, line);
-
-        vector<string> tokens;
-        stringstream ss(line);
-        string token;
-        bool tokens_valid = true;
-
-        // Проверка каждого токена
-        while (ss >> token && tokens_valid)
-        {
-            if (token.size() != 1)
-            {
-                tokens_valid = false;
-                break;
-            }
-
-            // Проверка на оператор
-            if (isOperator(token))
-            {
-                tokens.push_back(token);
-                continue;
-            }
-
-            // Проверка на число
-            if (isdigit(token[0]))
-            {
-                try
-                {
-                    size_t pos;
-                    int num = stoi(token, &pos);
-                    if (pos != token.length() || num < 0 || num > 9)
-                    {
-                        tokens_valid = false;
-                    }
-                    else
-                    {
-                        tokens.push_back(token);
-                    }
-                }
-                catch (...)
-                {
-                    tokens_valid = false;
-                }
-                continue;
-            }
-
-            // Если ни оператор, ни число
-            tokens_valid = false;
-        }
-
-        if (!tokens_valid)
-        {
-            cout << "Ошибка! Недопустимые символы в выражении. Используйте только "
-                << tValidOps << " и цифры 0-9." << endl;
-            continue;
-        }
-
-        // Проверка корректности префиксной записи
-        try
-        {
-            int index = 0;
-            tRoot = buildTreeFromPrefix(tokens, index);
-            if (index != tokens.size())
-            {
-                throw runtime_error("Неверное количество элементов в выражении");
-            }
-            input_valid = true;
-        }
-        catch (const exception& e)
-        {
-            cout << "Ошибка в выражении: " << e.what()
-                << ". Попробуйте снова." << endl;
-            if (tRoot)
-            {
-                clearTree(tRoot);
-                tRoot = nullptr;
-            }
-        }
-    }
-}
-
-// Генерирует случайное дерево
-void TreeOperands::buildRandom()
-{
-    srand(time(nullptr));
-    int numNodes = rand() % 10 + 5; // От 5 до 14 узлов
-    vector<string> tokens;
-
-    for (int i = 0; i < numNodes; ++i)
-    {
-        if (rand() % 3 == 0)// 33% вероятность оператора
-        {
-            tokens.push_back(string(1, tValidOps[rand() % tValidOps.size()]));
-        }
-        else// 67% вероятность операнда (0-9)
-        {
-            tokens.push_back(to_string(rand() % 10));
-        }
-    }
-
-    int index = 0;
-    tRoot = buildTreeFromPrefix(tokens, index);
-}
-
-// Применяет преобразование дерева
-void TreeOperands::transform()
-{
-    transformTree(tRoot);
-}
-
-// Выводит дерева
-void TreeOperands::print()
-{
-    if (!tRoot)
-    {
-        cout << "Дерево пустое." << endl;
-        return;
-    }
-    printTree(tRoot);
-}
-
-// Вычисление выражения
-int TreeOperands::evaluateNode()
-{
-    if (!tRoot)
-    {
-        throw runtime_error("Дерево пустое");
-    }
-    return evaluate(tRoot);
-}
-
-// Возвращает указатель на корень дерева
-TreeOperands::TreeNode* TreeOperands::getRoot()
-{
-    return tRoot;
-}
-
-//------------
-
-//1
-// Сортировка списка
-void BubbleSortList(Nodee* nHead)
-{
-    if (!nHead) return;
-
-    bool bSwapped;
-    Nodee* nEnd = nullptr;
-    do
-    {
-        bSwapped = false;
-        Nodee* nCurrent = nHead;
-
-        while (nCurrent->nNext != nEnd)
-        {
-            if (nCurrent->nData > nCurrent->nNext->nData)
-            {
-                swap(nCurrent->nData, nCurrent->nNext->nData);
-                bSwapped = true;
-            }
-            nCurrent = nCurrent->nNext;
-        }
-        nEnd = nCurrent;
-    } while (bSwapped);
-}
-
-// Создаёт двусвязный список на основе ввода пользователя
-Nodee* CreateListFromInput()
-{
-    Nodee* nHead = nullptr;
-    Nodee* nTail = nullptr;
-    int nValue;
-    int n;
-
-    cout << "Введите кол-во элементы для списка:" << endl;
-    n = getIntegerInput();
-
-    cout << "Введите элементы для списка:" << endl;
-
-    for (int i = 0; i < n; i++)
-    {
-        nValue = getIntegerInput();
-        Nodee* nNewNode = new Nodee(nValue);
-
-        if (!nHead)
-        {
-            nHead = nNewNode;
-            nTail = nNewNode;
-        }
-        else
-        {
-            nTail->nNext = nNewNode;
-            nNewNode->nPrev = nTail;
-            nTail = nNewNode;
-        }
-    }
-
-    //BubbleSortList(nHead);
-    return nHead;
-}
-
-// Печатает элементы списка
-void PrintList(Nodee* nHead)
-{
-    Nodee* nCurrent = nHead;
-    while (nCurrent)
-    {
-        cout << nCurrent->nData << " ";
-        nCurrent = nCurrent->nNext;
-    }
-    cout << endl;
-}
-
-//Подсчитывает количество узлов в списке
-int CountNodes(Nodee* nHead)
-{
-    int nCount = 0;
-    Nodee* nTemp = nHead;
-    while (nTemp)
-    {
-        nCount++;
-        nTemp = nTemp->nNext;
-    }
-    return nCount;
-}
-
-//Рекурсивно преобразует часть списка в сбалансированное BST
-Nodee* ListToBST(Nodee*& nHead, int n)
-{
-    if (n <= 0)
-    {
-        return nullptr;
-    }
-
-    // Рекурсивно строим левое поддерево
-    Nodee* nLeft = ListToBST(nHead, n / 2);
-
-    // Текущий узел становится корнем
-    Nodee* nRoot = nHead;
-
-    // Связываем левое поддерево
-    nRoot->nPrev = nLeft;
-
-    // Перемещаем голову на следующий узел
-    nHead = nHead->nNext;
-
-    // Рекурсивно строим правое поддерево
-    nRoot->nNext = ListToBST(nHead, n - n / 2 - 1);
-
-    return nRoot;
-}
-
-//Преобразует отсортированный список в сбалансированное BST
-Nodee* SortedListToBST(Nodee* nHead)
-{
-    int nCount = CountNodes(nHead);
-    return ListToBST(nHead, nCount);
-}
-
-//Печатает дерево в заданном формате с отступами
-void PrintTreeFormatted(Nodee* nRoot, int nLevel, char cPrefix)
-{
-    if (!nRoot)
-    {
-        return;
-    }
-
-    // Сначала правые поддеревья (они выводятся выше)
-    PrintTreeFormatted(nRoot->nNext, nLevel + 1, '/');
-
-    // Отступы для текущего уровня
-    for (int i = 0; i < nLevel * 4; i++)
-    {
-        cout << " ";
-    }
-
-    // Вывод узла с префиксом
-    cout << cPrefix << "-- " << nRoot->nData << endl;
-
-    // Затем левые поддеревья (они выводятся ниже)
-    PrintTreeFormatted(nRoot->nPrev, nLevel + 1, '\\');
-}
-
-//2
-// Функция для вывода дерева в горизонтальном формате
-template <typename T>
-void PrintTree(shared_ptr<TreeNode<T>> node, int space, int gap)
-{
-    if (node == nullptr) return;
-
-    // Увеличиваем отступ для правого поддерева
-    space += gap;
-
-    // Сначала выводим правое поддерево
-    PrintTree(node->tRight, space);
-
-    // Выводим текущий узел
-    cout << endl;
-    for (int i = gap; i < space; i++)
-    {
-        cout << " ";
-    }
-    cout << node->tValue << endl;
-
-    // Затем выводим левое поддерево
-    PrintTree(node->tLeft, space);
-}
-
-//---------------
-// Класс EquationRingSolver
+// РљР»Р°СЃСЃ EquationRingSolver
 /**
-* Конструктор инициализирует строку кольца
+* РљРѕРЅСЃС‚СЂСѓРєС‚РѕСЂ РёРЅРёС†РёР°Р»РёР·РёСЂСѓРµС‚ СЃС‚СЂРѕРєСѓ РєРѕР»СЊС†Р°
 */
 EquationRingSolver::EquationRingSolver(const string& ring)
     : mRing(ring) {}
 
 /**
-* Поиск уравнения
+* РџРѕРёСЃРє СѓСЂР°РІРЅРµРЅРёСЏ
 */
 string EquationRingSolver::FindEquation()
 {
     const int ringSize = mRing.size();
     string result;
 
-    // Перебор всех возможных длин для A, B и C
+    // РџРµСЂРµР±РѕСЂ РІСЃРµС… РІРѕР·РјРѕР¶РЅС‹С… РґР»РёРЅ РґР»СЏ A, B Рё C
     for (int aLength = 1; aLength <= ringSize - 2; ++aLength)
     {
         for (int bLength = 1; bLength <= ringSize - aLength - 1; ++bLength)
@@ -602,7 +26,7 @@ string EquationRingSolver::FindEquation()
                 continue;
             }
 
-            // Проверка всех стартовых позиций
+            // РџСЂРѕРІРµСЂРєР° РІСЃРµС… СЃС‚Р°СЂС‚РѕРІС‹С… РїРѕР·РёС†РёР№
             for (int start = 0; start < ringSize; ++start)
             {
                 if (CheckCombination(start, aLength, bLength, cLength, result))
@@ -617,7 +41,7 @@ string EquationRingSolver::FindEquation()
 }
 
 /**
-* Извлекает подстроку из кольца
+* РР·РІР»РµРєР°РµС‚ РїРѕРґСЃС‚СЂРѕРєСѓ РёР· РєРѕР»СЊС†Р°
 */
 string EquationRingSolver::ExtractNumber(int start, int length) const
 {
@@ -634,7 +58,7 @@ string EquationRingSolver::ExtractNumber(int start, int length) const
 }
 
 /**
-* Проверка на ведущий ноль
+* РџСЂРѕРІРµСЂРєР° РЅР° РІРµРґСѓС‰РёР№ РЅРѕР»СЊ
 */
 bool EquationRingSolver::HasLeadingZero(const string& number) const
 {
@@ -642,7 +66,7 @@ bool EquationRingSolver::HasLeadingZero(const string& number) const
 }
 
 /**
-* Проверяет выполняется ли для данной комбинации A+B=C
+* РџСЂРѕРІРµСЂСЏРµС‚ РІС‹РїРѕР»РЅСЏРµС‚СЃСЏ Р»Рё РґР»СЏ РґР°РЅРЅРѕР№ РєРѕРјР±РёРЅР°С†РёРё A+B=C
 */
 bool EquationRingSolver::CheckCombination(int aStart, int aLength,
     int bLength, int cLength, string& result) const
@@ -651,7 +75,7 @@ bool EquationRingSolver::CheckCombination(int aStart, int aLength,
     const string bPart = ExtractNumber((aStart + aLength) % mRing.size(), bLength);
     const string cPart = ExtractNumber((aStart + aLength + bLength) % mRing.size(), cLength);
 
-    // Проверка на ведущие нули
+    // РџСЂРѕРІРµСЂРєР° РЅР° РІРµРґСѓС‰РёРµ РЅСѓР»Рё
     if (HasLeadingZero(aPart) || HasLeadingZero(bPart) || HasLeadingZero(cPart))
     {
         return false;
@@ -682,9 +106,9 @@ bool EquationRingSolver::CheckCombination(int aStart, int aLength,
     return false;
 }
 
-// Класс RingSolverApp
+// РљР»Р°СЃСЃ RingSolverApp
 /**
-* Основной цикл приложения
+* РћСЃРЅРѕРІРЅРѕР№ С†РёРєР» РїСЂРёР»РѕР¶РµРЅРёСЏ
 */
 void RingSolverApp::Run()
 {
@@ -696,7 +120,7 @@ void RingSolverApp::Run()
         cout << "> ";
         getline(cin, ring);
 
-        // Удаляем случайные пробелы в начале/конце
+        // РЈРґР°Р»СЏРµРј СЃР»СѓС‡Р°Р№РЅС‹Рµ РїСЂРѕР±РµР»С‹ РІ РЅР°С‡Р°Р»Рµ/РєРѕРЅС†Рµ
         ring.erase(0, ring.find_first_not_of(" \t"));
         ring.erase(ring.find_last_not_of(" \t") + 1);
         if (ValidateInput(ring))
@@ -705,7 +129,7 @@ void RingSolverApp::Run()
         }
     }
 
-    cout << "\nВыполнение работы. . .\n" ;
+    cout << "\nР’С‹РїРѕР»РЅРµРЅРёРµ СЂР°Р±РѕС‚С‹. . .\n" ;
     EquationRingSolver solver(ring);
     string result = solver.FindEquation();
 
@@ -714,36 +138,35 @@ void RingSolverApp::Run()
 }
 
 /**
-* Приветственное сообщение
+* РџСЂРёРІРµС‚СЃС‚РІРµРЅРЅРѕРµ СЃРѕРѕР±С‰РµРЅРёРµ
 */
 void RingSolverApp::PrintWelcomeMessage() const
 {
     cout << "========================================\n";
-    cout << "    Числовое кольцо: решатель A+B=C     \n";
+    cout << "    Р§РёСЃР»РѕРІРѕРµ РєРѕР»СЊС†Рѕ: СЂРµС€Р°С‚РµР»СЊ A+B=C     \n";
     cout << "========================================\n\n";
-    cout << "Введите последовательность цифр кольца (без пробелов):\n";
-    cout << "Правила ввода:\n";
-    cout << "1. Только цифры без пробелов\n";
-    cout << "2. Минимум 3 символа\n";
-    cout << "Пример: 102030\n";
-    cout << "(При больших входных данных может занять некоторое время для решения задачи)\n\n";
+    cout << "Р’РІРµРґРёС‚Рµ РїРѕСЃР»РµРґРѕРІР°С‚РµР»СЊРЅРѕСЃС‚СЊ С†РёС„СЂ РєРѕР»СЊС†Р° (Р±РµР· РїСЂРѕР±РµР»РѕРІ):\n";
+    cout << "РџСЂР°РІРёР»Р° РІРІРѕРґР°:\n";
+    cout << "1. РўРѕР»СЊРєРѕ С†РёС„СЂС‹ Р±РµР· РїСЂРѕР±РµР»РѕРІ\n";
+    cout << "2. РњРёРЅРёРјСѓРј 3 СЃРёРјРІРѕР»Р°\n";
+    cout << "РџСЂРёРјРµСЂ: 102030\n";
+    cout << "(РџСЂРё Р±РѕР»СЊС€РёС… РІС…РѕРґРЅС‹С… РґР°РЅРЅС‹С… РјРѕР¶РµС‚ Р·Р°РЅСЏС‚СЊ РЅРµРєРѕС‚РѕСЂРѕРµ РІСЂРµРјСЏ РґР»СЏ СЂРµС€РµРЅРёСЏ Р·Р°РґР°С‡Рё)\n\n";
 }
 
 /**
-* Выводит результат работы
+* Р’С‹РІРѕРґРёС‚ СЂРµР·СѓР»СЊС‚Р°С‚ СЂР°Р±РѕС‚С‹
 */
 void RingSolverApp::PrintResult(const string& result) const
 {
-    cout << "\nРезультат:\n";
+    cout << "\Р РµР·СѓР»СЊС‚Р°С‚:\n";
     cout << "----------------------------------------\n";
 
     if (result != "No")
     {
-        cout << "Найдено уравнение: " << result << "\n";
+        cout << "РќР°Р№РґРµРЅРѕ СѓСЂР°РІРЅРµРЅРёРµ: " << result << "\n";
     }
     else
     {
-        //cout << "Решение не найдено\n";
         cout << "No\n";
     }
 
@@ -751,7 +174,7 @@ void RingSolverApp::PrintResult(const string& result) const
 }
 
 /**
-* Выводит милое изображение
+* Р’С‹РІРѕРґРёС‚ РјРёР»РѕРµ РёР·РѕР±СЂР°Р¶РµРЅРёРµ
 */
 void RingSolverApp::printCutePixelArt() const
 {
@@ -764,19 +187,19 @@ void RingSolverApp::printCutePixelArt() const
 }
 
 /**
-* Проверка корректности ввода
+* РџСЂРѕРІРµСЂРєР° РєРѕСЂСЂРµРєС‚РЅРѕСЃС‚Рё РІРІРѕРґР°
 */
 bool RingSolverApp::ValidateInput(const string& input) const
 {
     if (input.empty())
     {
-        cout << "Ошибка: пустой ввод\n";
+        cout << "РћС€РёР±РєР°: РїСѓСЃС‚РѕР№ РІРІРѕРґ\n";
         return false;
     }
 
     if (input.find(' ') != string::npos)
     {
-        cout << "Ошибка: ввод не должен содержать пробелов\n";
+        cout << "РћС€РёР±РєР°: РІРІРѕРґ РЅРµ РґРѕР»Р¶РµРЅ СЃРѕРґРµСЂР¶Р°С‚СЊ РїСЂРѕР±РµР»РѕРІ\n";
         return false;
     }
 
@@ -784,40 +207,40 @@ bool RingSolverApp::ValidateInput(const string& input) const
     {
         if (!isdigit(c))
         {
-            cout << "Ошибка: ввод должен содержать только цифры\n";
+            cout << "РћС€РёР±РєР°: РІРІРѕРґ РґРѕР»Р¶РµРЅ СЃРѕРґРµСЂР¶Р°С‚СЊ С‚РѕР»СЊРєРѕ С†РёС„СЂС‹\n";
             return false;
         }
     }
 
     if (input.length() < 3)
     {
-        cout << "Ошибка: минимальная длина ввода - 3 цифры\n";
+        cout << "РћС€РёР±РєР°: РјРёРЅРёРјР°Р»СЊРЅР°СЏ РґР»РёРЅР° РІРІРѕРґР° - 3 С†РёС„СЂС‹\n";
         return false;
     }
 
     return true;
 }
 
-// Класс BigInt
+// РљР»Р°СЃСЃ BigInt
 /**
-* Конструктор преобразует строку в массив цифр
+* РљРѕРЅСЃС‚СЂСѓРєС‚РѕСЂ РїСЂРµРѕР±СЂР°Р·СѓРµС‚ СЃС‚СЂРѕРєСѓ РІ РјР°СЃСЃРёРІ С†РёС„СЂ
 */
 BigInt::BigInt(const string& s)
 {
     for (char c : s)
     {
-        digits.push_back(c - '0'); // Конвертируем символ в цифру
+        digits.push_back(c - '0'); // РљРѕРЅРІРµСЂС‚РёСЂСѓРµРј СЃРёРјРІРѕР» РІ С†РёС„СЂСѓ
     }
-    reverse(digits.begin(), digits.end()); // Переворачиваем для удобства вычислений
+    reverse(digits.begin(), digits.end()); // РџРµСЂРµРІРѕСЂР°С‡РёРІР°РµРј РґР»СЏ СѓРґРѕР±СЃС‚РІР° РІС‹С‡РёСЃР»РµРЅРёР№
 }
 
 /**
-* Сложение двух больших чисел
+* РЎР»РѕР¶РµРЅРёРµ РґРІСѓС… Р±РѕР»СЊС€РёС… С‡РёСЃРµР»
 */
 BigInt BigInt::operator+(const BigInt& other) const
 {
     BigInt result("");
-    int carry = 0; // Перенос в следующий разряд
+    int carry = 0; // РџРµСЂРµРЅРѕСЃ РІ СЃР»РµРґСѓСЋС‰РёР№ СЂР°Р·СЂСЏРґ
     size_t max_len = max(digits.size(), other.digits.size());
 
     for (size_t i = 0; i < max_len || carry; ++i)
@@ -834,7 +257,7 @@ BigInt BigInt::operator+(const BigInt& other) const
 }
 
 /**
-* Сравнение чисел
+* РЎСЂР°РІРЅРµРЅРёРµ С‡РёСЃРµР»
 */
 bool BigInt::operator==(const BigInt& other) const
 {
@@ -842,7 +265,7 @@ bool BigInt::operator==(const BigInt& other) const
 }
 
 /**
-* Преобразование числа в строку
+* РџСЂРµРѕР±СЂР°Р·РѕРІР°РЅРёРµ С‡РёСЃР»Р° РІ СЃС‚СЂРѕРєСѓ
 */
 string BigInt::toString() const
 {
