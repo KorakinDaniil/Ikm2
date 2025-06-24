@@ -1,146 +1,165 @@
 #include "head.h"
 
-// Класс EquationRingSolver
-/**
-* Конструктор инициализирует строку кольца
-*/
-EquationRingSolver::EquationRingSolver(const string& ring)
-    : mRing(ring) {}
-
-/**
-* Поиск уравнения
-*/
-string EquationRingSolver::FindEquation()
+// Конструктор создает циклический список из строки цифр
+CircularList::CircularList(const string& digits) : head(nullptr), size(0)
 {
-    const int ringSize = mRing.size();
-    string result;
-
-    // Перебор всех возможных длин для A, B и C
-    for (int aLength = 1; aLength <= ringSize - 2; ++aLength)
+    if (digits.empty())
     {
-        for (int bLength = 1; bLength <= ringSize - aLength - 1; ++bLength)
+        return;
+    }
+
+    // Создаем первый узел
+    head = new Node(digits[0]);
+    Node* current = head;
+    size = 1;
+
+    // Добавляем остальные цифры
+    for (size_t i = 1; i < digits.size(); ++i)
+    {
+        current->next = new Node(digits[i]);
+        current = current->next;
+        size++;
+    }
+
+    // Замыкаем список в кольцо
+    current->next = head;
+}
+
+// Деструктор освобождает память
+CircularList::~CircularList()
+{
+    if (!head)
+    {
+        return;
+    }
+
+    Node* current = head;
+    do
+    {
+        Node* temp = current;
+        current = current->next;
+        delete temp;
+    } while (current != head);
+}
+
+// Возвращает указатель на начальный узел
+Node* CircularList::getHead() const
+{
+    return head;
+}
+
+// Возвращает количество цифр в кольце
+int CircularList::getSize() const
+{
+    return size;
+}
+
+// Извлекает число заданной длины, начиная с указанного узла
+string CircularList::extractNumber(Node* start, int length) const
+{
+    string num;
+    Node* current = start;
+
+    // Собираем цифры в строку
+    for (int i = 0; i < length; ++i)
+    {
+        num += current->digit;
+        current = current->next;
+    }
+    return num;
+}
+
+// Перемещает указатель на заданное количество узлов вперед
+Node* CircularList::advance(Node* node, int steps) const
+{
+    while (steps-- > 0)
+    {
+        node = node->next;
+    }
+    return node;
+}
+
+// Основной метод решения
+string RingSolver::Solve(const string& digits)
+{
+    // Создание циклического списка цифр
+    CircularList ring(digits);
+
+    // Перебор всех возможных комбинаций длин A, B и C
+    for (int aLen = 1; aLen <= ring.getSize() - 2; ++aLen)
+    {
+        for (int bLen = 1; bLen <= ring.getSize() - aLen - 1; ++bLen)
         {
-            const int cLength = ringSize - aLength - bLength;
-            if (cLength < 1)
+            int cLen = ring.getSize() - aLen - bLen;
+            if (cLen < 1)
             {
-                continue;
+                continue; // Пропускаем невозможные варианты
             }
 
-            // Проверка всех стартовых позиций
-            for (int start = 0; start < ringSize; ++start)
+            // Проверка всех стартовых позиций в кольце
+            for (int pos = 0; pos < ring.getSize(); ++pos)
             {
-                if (CheckCombination(start, aLength, bLength, cLength, result))
+                // Извлечение чисел A, B, C из кольца
+                auto* current = ring.advance(ring.getHead(), pos);
+                string a = ring.extractNumber(current, aLen);
+
+                current = ring.advance(current, aLen);
+                string b = ring.extractNumber(current, bLen);
+
+                current = ring.advance(current, bLen);
+                string c = ring.extractNumber(current, cLen);
+
+                // Проверка чисел и суммы
+                if (!a.empty() && !b.empty() && !c.empty() && // Не пустые строки
+                    !(a.size() > 1 && a[0] == '0') && // Нет ведущих нулей в A
+                    !(b.size() > 1 && b[0] == '0') && // Нет ведущих нулей в B
+                    !(c.size() > 1 && c[0] == '0')) // Нет ведущих нулей в C
                 {
-                    return result;
+                    // Быстрое преобразование строк в числа
+                    int numA = 0, numB = 0, numC = 0;
+                    for (char ch : a)
+                        {
+                            numA = numA * 10 + (ch - '0');
+                        }
+                    for (char ch : b)
+                        {
+                            numB = numB * 10 + (ch - '0');
+                        }
+                    for (char ch : c)
+                        {
+                            numC = numC * 10 + (ch - '0');
+                        }
+
+                    // Основная проверка уравнения
+                    if (numA + numB == numC)
+                    {
+                        return a + "+" + b + "=" + c;
+                    }
                 }
             }
         }
     }
-
     return "No";
 }
 
-/**
-* Извлекает подстроку из кольца
-*/
-string EquationRingSolver::ExtractNumber(int start, int length) const
-{
-    string number;
-    const int ringSize = mRing.size();
-
-    for (int i = 0; i < length; ++i)
-    {
-        const int position = (start + i) % ringSize;
-        number += mRing[position];
-    }
-
-    return number;
-}
-
-/**
-* Проверка на ведущий ноль
-*/
-bool EquationRingSolver::HasLeadingZero(const string& number) const
-{
-    return number.size() > 1 && number[0] == '0';
-}
-
-/**
-* Проверяет выполняется ли для данной комбинации A+B=C
-*/
-bool EquationRingSolver::CheckCombination(int aStart, int aLength,
-    int bLength, int cLength, string& result) const
-{
-    const string aPart = ExtractNumber(aStart, aLength);
-    const string bPart = ExtractNumber((aStart + aLength) % mRing.size(), bLength);
-    const string cPart = ExtractNumber((aStart + aLength + bLength) % mRing.size(), cLength);
-
-    // Проверка на ведущие нули
-    if (HasLeadingZero(aPart) || HasLeadingZero(bPart) || HasLeadingZero(cPart))
-    {
-        return false;
-    }
-
-    try
-    {
-        BigInt a(aPart);
-        BigInt b(bPart);
-        BigInt c(cPart);
-        BigInt sum = a + b;
-
-        if (sum == c)
-        {
-            result = aPart + "+" + bPart + "=" + cPart;
-            return true;
-        }
-    }
-    catch (const invalid_argument&)
-    {
-        return false;
-    }
-    catch (const out_of_range&)
-    {
-        return false;
-    }
-
-    return false;
-}
-
-// Класс RingSolverApp
-/**
-* Основной цикл приложения
-*/
-void RingSolverApp::Run()
+// Главный метод, запускающий приложение
+void RingSolverUI::Run()
 {
     PrintWelcomeMessage();
 
-    string ring;
-    while (true)
-    {
-        cout << "> ";
-        getline(cin, ring);
+    string input = GetValidInput();
 
-        // Удаляем случайные пробелы в начале/конце
-        ring.erase(0, ring.find_first_not_of(" \t"));
-        ring.erase(ring.find_last_not_of(" \t") + 1);
-        if (ValidateInput(ring))
-        {
-            break;
-        }
-    }
+    cout << "\nВыполнение. . .\n";
 
-    cout << "\nВыполнение работы. . .\n" ;
-    EquationRingSolver solver(ring);
-    string result = solver.FindEquation();
+    string result = RingSolver::Solve(input);
 
     PrintResult(result);
-    printCutePixelArt();
+
+    PrintCutePixelArt();
 }
 
-/**
-* Приветственное сообщение
-*/
-void RingSolverApp::PrintWelcomeMessage() const
+// Вывод приветствия и инструкции
+void RingSolverUI::PrintWelcomeMessage() const
 {
     cout << "========================================\n";
     cout << "    Числовое кольцо: решатель A+B=C     \n";
@@ -148,48 +167,33 @@ void RingSolverApp::PrintWelcomeMessage() const
     cout << "Введите последовательность цифр кольца (без пробелов):\n";
     cout << "Правила ввода:\n";
     cout << "1. Только цифры без пробелов\n";
-    cout << "2. Минимум 3 символа\n";
+    cout << "2. Минимум 3 символа, максимум 1000\n";
     cout << "Пример: 102030\n";
-    cout << "(При больших входных данных может занять некоторое время для решения задачи)\n\n";
+    cout << "(При больших входных данных решение может занять некоторое время)\n\n";
 }
 
-/**
-* Выводит результат работы
-*/
-void RingSolverApp::PrintResult(const string& result) const
+// Ввод пользователя
+string RingSolverUI::GetValidInput() const
 {
-    cout << "\Результат:\n";
-    cout << "----------------------------------------\n";
-
-    if (result != "No")
+    string input;
+    while (true)
     {
-        cout << "Найдено уравнение: " << result << "\n";
-    }
-    else
-    {
-        cout << "No\n";
-    }
+        cout << "> ";
+        getline(cin, input);
 
-    cout << "----------------------------------------\n";
+        // Удаление всех пробелов
+        input.erase(remove_if(input.begin(), input.end(), ::isspace), input.end());
+
+        if (ValidateInput(input))
+        {
+            break;
+        }
+    }
+    return input;
 }
 
-/**
-* Выводит милое изображение
-*/
-void RingSolverApp::printCutePixelArt() const
-{
-    cout << "  /\\_/\\  \n";
-    cout << " ( o.o ) \n";
-    cout << "  > ^ <   \n";
-    cout << "  /   \\  \n";
-    cout << " (     ) \n";
-    cout << "  `~~~`  \n";
-}
-
-/**
-* Проверка корректности ввода
-*/
-bool RingSolverApp::ValidateInput(const string& input) const
+// Проверка корректность ввода
+bool RingSolverUI::ValidateInput(const string& input) const
 {
     if (input.empty())
     {
@@ -218,61 +222,40 @@ bool RingSolverApp::ValidateInput(const string& input) const
         return false;
     }
 
+    if (input.length() > 1000)
+    {
+        cout << "Ошибка: максимальная длина ввода не более 1000 цифр\n";
+        return false;
+    }
+
     return true;
 }
 
-// Класс BigInt
-/**
-* Конструктор преобразует строку в массив цифр
-*/
-BigInt::BigInt(const string& s)
+// Выводит результат решения
+void RingSolverUI::PrintResult(const string& result) const
 {
-    for (char c : s)
+    cout << "\nРезультат:\n";
+    cout << "----------------------------------------\n";
+
+    if (result != "No")
     {
-        digits.push_back(c - '0'); // Конвертируем символ в цифру
+        cout << "Найдено уравнение: " << result << "\n";
     }
-    reverse(digits.begin(), digits.end()); // Переворачиваем для удобства вычислений
-}
-
-/**
-* Сложение двух больших чисел
-*/
-BigInt BigInt::operator+(const BigInt& other) const
-{
-    BigInt result("");
-    int carry = 0; // Перенос в следующий разряд
-    size_t max_len = max(digits.size(), other.digits.size());
-
-    for (size_t i = 0; i < max_len || carry; ++i)
+    else
     {
-        int sum = carry;
-        if (i < digits.size()) sum += digits[i];
-        if (i < other.digits.size()) sum += other.digits[i];
-
-        result.digits.push_back(sum % 10);
-        carry = sum / 10;
+        cout << "No\n";
     }
 
-    return result;
+    cout << "----------------------------------------\n";
 }
 
-/**
-* Сравнение чисел
-*/
-bool BigInt::operator==(const BigInt& other) const
+// Выводит милое изображение
+void RingSolverUI::PrintCutePixelArt() const
 {
-    return digits == other.digits;
-}
-
-/**
-* Преобразование числа в строку
-*/
-string BigInt::toString() const
-{
-    string s;
-    for (auto it = digits.rbegin(); it != digits.rend(); ++it)
-    {
-        s += to_string(*it);
-    }
-    return s;
+    cout << "  /\\_/\\  \n";
+    cout << " ( o.o ) \n";
+    cout << "  > ^ <   \n";
+    cout << "  /   \\  \n";
+    cout << " (     ) \n";
+    cout << "  `~~~`  \n";
 }
