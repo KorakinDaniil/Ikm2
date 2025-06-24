@@ -6,7 +6,7 @@ int main()
     SetConsoleCP(1251);
     SetConsoleOutputCP(1251);
     
-    RingSolverApp app;
+    RingSolverUI app;
     app.Run();
     return 0;
 }
